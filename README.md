@@ -1,2 +1,4 @@
-# DomE
-mulriplayer platformer
+# parcl_vc
+
+Небольшой мультиплеерный платформер.
+Перед запуском убедится о наличии Pygame, Python 3.12 и выше.
