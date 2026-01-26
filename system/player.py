@@ -1,5 +1,4 @@
 import pygame
-import math
 
 class Player(pygame.sprite.Sprite):
     def __init__(

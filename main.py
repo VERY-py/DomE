@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
 from system.player import Player
 from system.client import Client
+from system.console import Chat
 pygame.init()
 
 info = pygame.display.Info()
@@ -14,7 +15,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
 pygame.display.set_caption("DomE")
 ico = pygame.image.load('assets/logo_dome.ico')
 PRESETS_FILE = "json/presets.json"
-DEFAULT_DIR   = os.path.expanduser("~")
+DEFAULT_DIR = os.path.expanduser("~")
 pygame.display.set_icon(ico)
 font = pygame.font.Font(None, 50)
 font1 = pygame.font.Font(None, 30)
@@ -25,7 +26,7 @@ spawn_points = {
     "Гора": [(3, 0), (1124, 807)],
 }
 
-def get_player_rect(x, y, size_state):
+def get_player_rect(size_state):
     """Возвращает pygame.Rect в зависимости от size_state"""
     if size_state == 1:
         return 45, 15
@@ -94,7 +95,7 @@ def save_presets(presets: dict):
     with open(PRESETS_FILE, "w", encoding="utf-8") as f:
         json.dump(presets, f, indent=2, ensure_ascii=False)
 
-def select_image(entry: tk.Entry) -> str | None:
+def select_image(entry: tk.Entry):
     filepath = filedialog.askopenfilename(
         title="Выберите изображение",
         initialdir=DEFAULT_DIR,
@@ -122,8 +123,8 @@ def start_room(event=None):
         room_id = [1, 1]
         coords = [735, 749]
 
-    room_id  = list(spawn_points[selected][0])
-    coords   = list(spawn_points[selected][1])
+    room_id = list(spawn_points[selected][0])
+    coords = list(spawn_points[selected][1])
 
 def on_select_preset(event=None):
     name1 = preset_combo.get()
@@ -176,7 +177,7 @@ def load_level(image_path):
     return level_mask
 
 def main():
-    global client, output, multiplayer
+    global client, output, multiplayer, chat
     player1 = Player(coords, image_path1)
     player2 = Player(coords, image_path2,
         A=pygame.K_KP4,
@@ -206,6 +207,7 @@ def main():
         with open('json/input_info.json', 'w', encoding='utf-8') as f:
             json.dump(st, f, indent=4, ensure_ascii=False)
         client = Client(host, int(port))
+        chat = Chat(player1, screen, name)
         try:
             client.connect()
         except ConnectionRefusedError:
@@ -269,7 +271,8 @@ def main():
                         "x": player1.rect.x,
                         "y": player1.rect.y,
                         "room": int(f"{room_x}{room_y}"),
-                        "pl" : player1.size_state
+                        "pl" : player1.size_state,
+                        "txt" : chat.chat[name]
                     }
                 }
                 with open('json/output_info.json', 'w', encoding='utf-8') as f:
@@ -279,14 +282,18 @@ def main():
                 if c:
                     running = False
                     stop = True
-                data = load_json('json/input_info.json', {"nicks": {}})
+                input = load_json('json/input_info.json', {"nicks": {}})
 
-                for nick in data.keys():
+                for nick in input.keys():
                     try:
-                        if data[nick]["room"] == output[name]["room"]:
-                            crd = get_player_rect(data[nick]["x"], data[nick]["y"], data[nick]["pl"])
+                        chat.print_in_chat(input[nick]["txt"])
+                        if input[nick]["room"] == output[name]["room"]:
+                            crd = get_player_rect(input[nick]["pl"])
                             player2.new_pl_size(crd)
-                            rect2 = pygame.Rect(data[nick]["x"], data[nick]["y"], player2.rect.width, player2.rect.height)
+                            rect2 = pygame.Rect(input[nick]["x"],
+                                                input[nick]["y"],
+                                                player2.rect.width,
+                                                player2.rect.height)
                             screen.blit(player2.image, rect2)
                             draw_nick(screen, font1, nick, rect2)
                         else:
@@ -326,13 +333,13 @@ def main():
             screen.fill((60, 60, 60))
             screen.blit(level_img, (0, 0))
             if multiplayer:
-                data = load_json('json/input_info.json', {"nicks": {}})
+                input = load_json('json/input_info.json', {"nicks": {}})
 
-                for nick in data.keys():
+                for nick in input.keys():
                     try:
-                        if data[nick]["room"] == output[name]["room"]:
-                            rect2 = pygame.Rect(data[nick]["x"], data[nick]["y"], 30, 30)
-                            screen.blit(player2.image, (data[nick]["x"], data[nick]["y"]))
+                        if input[nick]["room"] == output[name]["room"]:
+                            rect2 = pygame.Rect(input[nick]["x"], input[nick]["y"], 30, 30)
+                            screen.blit(player2.image, (input[nick]["x"], input[nick]["y"]))
                             draw_nick(screen, font1, nick, rect2)
                         else:
                             screen.blit(player1.image, player1.rect)
