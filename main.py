@@ -6,7 +6,6 @@ import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
 from system.player import Player
 from system.client import Client
-from system.console import Chat
 pygame.init()
 
 info = pygame.display.Info()
@@ -208,7 +207,6 @@ def main():
         with open('json/input_info.json', 'w', encoding='utf-8') as f:
             json.dump(st, f, indent=4, ensure_ascii=False)
         client = Client(host, int(port))
-        chat = Chat(player1, screen, name)
         try:
             client.connect()
         except ConnectionRefusedError:
@@ -273,7 +271,6 @@ def main():
                         "y": player1.rect.y,
                         "room": int(f"{room_x}{room_y}"),
                         "pl" : player1.size_state,
-                        "txt" : chat.chat[name]
                     }
                 }
                 with open('json/output_info.json', 'w', encoding='utf-8') as f:
@@ -287,7 +284,6 @@ def main():
 
                 for nick in input.keys():
                     try:
-                        chat.print_in_chat(input[nick]["txt"])
                         if input[nick]["room"] == output[name]["room"]:
                             crd = get_player_rect(input[nick]["pl"])
                             player2.new_pl_size(crd)
