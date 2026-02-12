@@ -4,6 +4,7 @@ import os
 import json
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
+from datetime import datetime
 from system.player import Player
 from system.client import Client
 pygame.init()
@@ -20,6 +21,7 @@ font = pygame.font.Font(None, 50)
 font1 = pygame.font.Font(None, 30)
 clock = pygame.time.Clock()
 GRAVITY = 0.7
+nmb_scr = 1
 spawn_points = {
     "Вход в подземки": [(1, 1), (735, 749)],
     "Гора": [(3, 0), (1124, 807)],
@@ -125,6 +127,13 @@ def start_room(event=None):
     room_id = list(spawn_points[selected][0])
     coords = list(spawn_points[selected][1])
 
+def save_screen(screen):
+    now_time = datetime.now()
+    now_time_e = str(now_time).split(".")
+    now_time_tr = now_time_e[0].split()
+    pt = str(f"screenshots/screenshot_{now_time_tr[0]}_{now_time_tr[1]}")
+    pygame.image.save(screen, pt)
+
 def on_select_preset(event=None):
     name1 = preset_combo.get()
     paths = presets.get(name1, [])
@@ -216,7 +225,6 @@ def main():
     stop = False
     abs_run = True
     while abs_run:
-
         while running:
             clock.tick(60)
             for event in pygame.event.get():
@@ -228,6 +236,8 @@ def main():
                     if event.key == pygame.K_q:
                         player1.xy()
                         player2.xy()
+                    if event.key == pygame.K_F2:
+                        save_screen(screen)
             keys = pygame.key.get_pressed()
             if keys[pygame.K_ESCAPE]:
                 running = False
