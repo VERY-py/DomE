@@ -15,6 +15,7 @@ class Player(pygame.sprite.Sprite):
             SPACE=pygame.K_SPACE
     ):
         super().__init__()
+        pygame.init()
         self.image = pygame.Surface((30, 30), pygame.SRCALPHA)
         self.image.fill((0, 200, 200))
         self.rect = self.image.get_rect(topleft=pos)
@@ -36,7 +37,7 @@ class Player(pygame.sprite.Sprite):
         self.wall_jump_dir = 0
         self.wall_jump_timer = 0
         self.wall_jump_timer_max = 14
-        self.original_image = pygame.image.load(skin).convert_alpha()
+        self.original_image = pygame.image.load(skin)
         self.image = pygame.transform.scale(self.original_image, (30, 30))
         self.rect = self.image.get_rect(topleft=pos)
         self.mask = pygame.mask.from_surface(self.image)

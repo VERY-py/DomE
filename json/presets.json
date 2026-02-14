@@ -1,14 +1,16 @@
 {
-  "База": [
-    "D:/Project/DomE0.1/assets/ico/player1.png",
-    "D:/Project/DomE0.1/assets/ico/player2.png",
-    "localhost",
-    "12345"
-  ],
-  "cv": [
-    "D:/DomE/assets/ico/player1.png",
-    "D:/DomE/assets/ico/player2.png",
-    "localhost",
-    "12345"
-  ]
+  "База": {
+    "player1_img": "assets/ico/player1.png",
+    "player2_img": "assets/ico/player2.png",
+    "host": "localhost",
+    "port": "12345",
+    "name": "UwU"
+  },
+  "cv": {
+    "player1_img": "D:/DomE/assets/ico/player1.png",
+    "player2_img": "D:/DomE/assets/ico/player2.png",
+    "host": "localhost",
+    "port": "12345",
+    "name": "UwU"
+  }
 }
