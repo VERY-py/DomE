@@ -381,8 +381,8 @@ class GUI:
         if self.multiplayer and not self.name:
             return
 
-        print(f"Запуск: {self.image_path1}, {self.image_path2}")
-        print(f"Хост: {self.host}, Порт: {self.port}")
+        if self.multiplayer:
+            print(f"Хост: {self.host}, Порт: {self.port}")
         self.running = False
 
     def run(self):
