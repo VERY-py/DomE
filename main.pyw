@@ -6,7 +6,6 @@ from datetime import datetime
 from system.player import Player
 from system.client import Client
 from system.GUI import GUI
-from system.objects import Square
 
 def get_player_rect(size_state):
     match size_state:
@@ -45,9 +44,9 @@ def draw_nick(screen, font, nick, rect, color=(255, 255, 255), bg_color=None, pa
     screen.blit(text_surface, text_rect)
 
 def save_screen(screen):
-    os.makedirs("screenshots", exist_ok=True)
+    os.makedirs(str(GUI.pr_dir / "screenshots"), exist_ok=True)
     now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f"screenshots/screenshot_{now}.png"
+    filename = str(GUI.pr_dir / f"screenshots/screenshot_{now}.png")
     pygame.image.save(screen, filename)
 
 def load_level(image_path):
@@ -56,9 +55,9 @@ def load_level(image_path):
 
 def load_room_assets(room):
     try:
-        level_mask = load_level(f'assets/hb/{room}.png')
-        level_img = pygame.image.load(f'assets/bg/{room}_bg.png').convert_alpha()
-        on_img_path = f'assets/on_bg/{room}_bg.png'
+        level_mask = load_level(str(GUI.pr_dir / f'assets/hb/{room}.png'))
+        level_img = pygame.image.load(str(GUI.pr_dir / f'assets/bg/{room}_bg.png')).convert_alpha()
+        on_img_path = str(GUI.pr_dir / f'assets/on_bg/{room}_bg.png')
         on_level_img = pygame.image.load(on_img_path).convert_alpha() if os.path.exists(on_img_path) else None
         return level_mask, level_img, on_level_img
     except FileNotFoundError:
@@ -100,7 +99,7 @@ def main():
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
     pygame.display.set_caption("DomE")
-    pygame.display.set_icon(pygame.image.load('assets/logo_dome.ico'))
+    pygame.display.set_icon(pygame.image.load(str(GUI.pr_dir / 'assets/logo_dome.ico')))
 
     font = pygame.font.Font(None, 50)
     font_small = pygame.font.Font(None, 30)
@@ -109,15 +108,15 @@ def main():
 
     room_id = [1, 1]
     coords = [735, 749]
-    player1 = Player(coords, gui.image_path1)
-    player2 = Player(coords, gui.image_path2,
+    player1 = Player(coords, str(GUI.pr_dir / gui.image_path1))
+    player2 = Player(coords, str(GUI.pr_dir / gui.image_path2),
                      A=pygame.K_KP4, D=pygame.K_KP6, W=pygame.K_KP8, S=pygame.K_KP5,
                      E=pygame.K_KP9, SHIFT=pygame.K_UP, CTRL=pygame.K_LEFT, SPACE=pygame.K_KP_ENTER)
 
     client = None
     if gui.multiplayer:
         st = {gui.name: {"x": 0, "y": 0, "room": 0, "pl": 0}}
-        with open('json/input_info.json', 'w', encoding='utf-8') as f:
+        with open(str(GUI.pr_dir / 'json/input_info.json'), 'w', encoding='utf-8') as f:
             json.dump(st, f, indent=4, ensure_ascii=False)
         client = Client(gui.host, int(gui.port))
         try:
@@ -135,7 +134,7 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 if client:
-                    client.send_to_server('json/end.json')
+                    client.send_to_server(str(GUI.pr_dir / 'json/end.json'))
                 return 0
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_q:
@@ -149,7 +148,7 @@ def main():
             paused = True
         if keys[pygame.K_TAB] and paused:
             if client:
-                client.send_to_server('json/end.json')
+                client.send_to_server(str(GUI.pr_dir / 'json/end.json'))
             return 0
         if keys[pygame.K_e] and paused:
             paused = False
@@ -188,14 +187,14 @@ def main():
                         "pl": player1.size_state,
                     }
                 }
-                with open('json/output_info.json', 'w', encoding='utf-8') as f:
+                with open(str(GUI.pr_dir / 'json/output_info.json'), 'w', encoding='utf-8') as f:
                     json.dump(output, f, indent=4, ensure_ascii=False)
 
-                if client.send_to_server('json/output_info.json'):
+                if client.send_to_server(str(GUI.pr_dir / 'json/output_info.json')):
                     running = False
                     break
 
-                input_data = load_json('json/input_info.json', {})
+                input_data = load_json(str(GUI.pr_dir / 'json/input_info.json'), {})
             else:
                 input_data = None
 
@@ -204,7 +203,7 @@ def main():
 
         else:
             screen.fill((60, 60, 60))
-            input_data = load_json('json/input_info.json', {}) if gui.multiplayer else None
+            input_data = load_json(str(GUI.pr_dir / 'json/input_info.json'), {}) if gui.multiplayer else None
             draw_players(screen, font_small, player1, player2, input_data, int(f"{room_id[0]}{room_id[1]}"), gui.name, level_img, on_level_img)
             text_rect = pause_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
             screen.blit(pause_text, text_rect)

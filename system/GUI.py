@@ -6,7 +6,7 @@ from pygame_gui.elements import UIButton, UITextEntryLine, UICheckBox
 from pygame_gui.windows import UIFileDialog
 from pygame_gui.elements import UILabel
 from pygame_gui.elements.ui_panel import UIPanel
-
+from pathlib import Path
 pygame.init()
 
 class PresetWindow:
@@ -218,13 +218,15 @@ class PresetWindow:
         return False
 
 class GUI:
+    pr_dir = Path(__file__).parent.parent
+
     def __init__(self, spawn_points):
         self.screen = pygame.display.set_mode((650, 400))
         self.manager = pygame_gui.UIManager((650, 400))
         self.clock = pygame.time.Clock()
 
-        self.image_path1 = ""
-        self.image_path2 = ""
+        self.image_path1 = "assets/ico/player1.png"
+        self.image_path2 = "assets/ico/player2.png"
         self.host = "localhost"
         self.port = "12345"
         self.multiplayer = False
@@ -289,7 +291,7 @@ class GUI:
         self.preset_window.show()
 
     def save_presets_file(self, presets):
-        preset_dir = "json"
+        preset_dir = str(self.pr_dir / "json")
         preset_file = os.path.join(preset_dir, "presets.json")
         try:
             if not os.path.exists(preset_dir):
@@ -300,7 +302,7 @@ class GUI:
             pass
 
     def load_presets(self):
-        preset_dir = "json"
+        preset_dir = str(self.pr_dir / "json")
         preset_file = os.path.join(preset_dir, "presets.json")
         if not os.path.exists(preset_file):
             return {}
@@ -318,7 +320,7 @@ class GUI:
             pygame.Rect(50, 50, 550, 400),
             self.manager,
             window_title='Выберите скин',
-            initial_file_path='.',
+            initial_file_path=str(self.pr_dir),
             allow_existing_files_only=True
         )
         self.current_entry = target_entry

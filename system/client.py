@@ -6,7 +6,7 @@ class Client:
     def __init__(self, host='localhost', port=12345):
         self.HOST = host
         self.PORT = port
-        self.JSON_FILE = 'example.json'
+        self.JSON_FILE = str(GUI.pr_dir / 'example.json')
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def receive_files(self):
@@ -25,7 +25,7 @@ class Client:
                     received_data += chunk
 
                 if len(received_data) == file_size:
-                    with open('json/input_info.json', 'wb') as f:
+                    with open(str(GUI.pr_dir / 'json/input_info.json'), 'wb') as f:
                         f.write(received_data)
             except:
                 break

@@ -5,12 +5,5 @@
     "host": "localhost",
     "port": "12345",
     "name": "UwU"
-  },
-  "cv": {
-    "player1_img": "D:/DomE/assets/ico/player1.png",
-    "player2_img": "D:/DomE/assets/ico/player2.png",
-    "host": "localhost",
-    "port": "12345",
-    "name": "UwU"
   }
 }
