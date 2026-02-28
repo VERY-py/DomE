@@ -7,6 +7,7 @@ from system.player import Player
 from system.client import Client
 from system.GUI import GUI
 
+
 def get_player_rect(size_state):
     match size_state:
         case 1:
@@ -15,6 +16,7 @@ def get_player_rect(size_state):
             return 15, 45
         case _:
             return 30, 30
+
 
 def load_json(filename, default):
     if not os.path.exists(filename) or os.path.getsize(filename) == 0:
@@ -33,6 +35,7 @@ def load_json(filename, default):
             json.dump(data, f, indent=2)
         return data
 
+
 def draw_nick(screen, font, nick, rect, color=(255, 255, 255), bg_color=None, padding=5):
     text_surface = font.render(nick, True, color)
     text_rect = text_surface.get_rect(centerx=rect.centerx, bottom=rect.top - padding)
@@ -43,15 +46,18 @@ def draw_nick(screen, font, nick, rect, color=(255, 255, 255), bg_color=None, pa
 
     screen.blit(text_surface, text_rect)
 
+
 def save_screen(screen):
     os.makedirs(str(GUI.pr_dir / "screenshots"), exist_ok=True)
     now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = str(GUI.pr_dir / f"screenshots/screenshot_{now}.png")
     pygame.image.save(screen, filename)
 
+
 def load_level(image_path):
     img = pygame.image.load(image_path).convert_alpha()
     return pygame.mask.from_surface(img)
+
 
 def load_room_assets(room):
     try:
@@ -63,24 +69,19 @@ def load_room_assets(room):
     except FileNotFoundError:
         return None, None, None
 
-def draw_players(screen, font, player1, player2, input_data, output_room, my_nick, level_img, on_level_img):
-    screen.blit(level_img, (0, 0))
 
-    if input_data:
-        for nick, data in input_data.items():
-            if data.get("room") == output_room and nick != my_nick:
-                x, y = data["x"], data["y"]
-                size_state = data.get("pl", 0)
-                width, height = get_player_rect(size_state)
-                rect = pygame.Rect(x, y, width, height)
-                screen.blit(player2.image, rect)
-                draw_nick(screen, font, nick, rect)
+def draw_remote_player(screen, font, nick, data, skin_image, output_room):
+    """Отрисовка удаленного игрока только по координатам"""
+    if data.get("room") == output_room:
+        x, y = data["x"], data["y"]
+        size_state = data.get("pl", 0)
+        width, height = get_player_rect(size_state)
+        rect = pygame.Rect(x, y, width, height)
 
-    screen.blit(player1.image, player1.rect)
-    draw_nick(screen, font, my_nick, player1.rect)
+        scaled_skin = pygame.transform.scale(skin_image, (width, height))
+        screen.blit(scaled_skin, rect)
+        draw_nick(screen, font, nick, rect)
 
-    if on_level_img:
-        screen.blit(on_level_img, (0, 0))
 
 def main():
     spawn_points = {
@@ -107,11 +108,12 @@ def main():
     pause_text = font.render("E - продолжить. TAB - выход.", True, (255, 255, 255))
 
     room_id = [1, 1]
-    coords = [735, 749]
+    coords = (735, 749)
+    input_data = None
+
     player1 = Player(coords, str(GUI.pr_dir / gui.image_path1))
-    player2 = Player(coords, str(GUI.pr_dir / gui.image_path2),
-                     A=pygame.K_KP4, D=pygame.K_KP6, W=pygame.K_KP8, S=pygame.K_KP5,
-                     E=pygame.K_KP9, SHIFT=pygame.K_UP, CTRL=pygame.K_LEFT, SPACE=pygame.K_KP_ENTER)
+
+    remote_skin = pygame.image.load(str(GUI.pr_dir / gui.image_path2))
 
     client = None
     if gui.multiplayer:
@@ -125,6 +127,7 @@ def main():
             gui.multiplayer = False
 
     level_mask, level_img, on_level_img = load_room_assets(f'room_{room_id[0]}{room_id[1]}')
+    output_room = int(f"{room_id[0]}{room_id[1]}")
 
     running = True
     paused = False
@@ -139,7 +142,6 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_q:
                     player1.xy()
-                    player2.xy()
                 if event.key == pygame.K_F2:
                     save_screen(screen)
 
@@ -161,29 +163,17 @@ def main():
                     running = False
                     break
                 level_mask, level_img, on_level_img = assets
-                player2.rect.topleft = player1.rect.topleft
                 room_id = [room_x, room_y]
-
-            room_x, room_y, new_room = player2.new_room(room_id[0], room_id[1])
-            if new_room != f'room_{room_id[0]}{room_id[1]}':
-                assets = load_room_assets(new_room)
-                if assets[0] is None:
-                    running = False
-                    break
-                level_mask, level_img, on_level_img = assets
-                player2.rect.topleft = player1.rect.topleft
-                room_id = [room_x, room_y]
+                output_room = int(f"{room_id[0]}{room_id[1]}")
 
             player1.update(level_mask, level_img)
-            player2.update(level_mask, level_img)
-
 
             if gui.multiplayer:
                 output = {
                     gui.name: {
                         "x": player1.rect.x,
                         "y": player1.rect.y,
-                        "room": int(f"{room_id[0]}{room_id[1]}"),
+                        "room": output_room,
                         "pl": player1.size_state,
                     }
                 }
@@ -199,12 +189,34 @@ def main():
                 input_data = None
 
             screen.fill((100, 100, 100))
-            draw_players(screen, font_small, player1, player2, input_data, int(f"{room_id[0]}{room_id[1]}"), gui.name, level_img, on_level_img)
+            screen.blit(level_img, (0, 0))
+
+            if input_data:
+                for nick, data in input_data.items():
+                    if nick != gui.name:
+                        draw_remote_player(screen, font_small, nick, data, remote_skin, output_room)
+
+            screen.blit(player1.image, player1.rect)
+            draw_nick(screen, font_small, gui.name, player1.rect)
+
+            if on_level_img:
+                screen.blit(on_level_img, (0, 0))
 
         else:
             screen.fill((60, 60, 60))
-            input_data = load_json(str(GUI.pr_dir / 'json/input_info.json'), {}) if gui.multiplayer else None
-            draw_players(screen, font_small, player1, player2, input_data, int(f"{room_id[0]}{room_id[1]}"), gui.name, level_img, on_level_img)
+            screen.blit(level_img, (0, 0))
+
+            if input_data:
+                for nick, data in input_data.items():
+                    if nick != gui.name:
+                        draw_remote_player(screen, font_small, nick, data, remote_skin, output_room)
+
+            screen.blit(player1.image, player1.rect)
+            draw_nick(screen, font_small, gui.name, player1.rect)
+
+            if on_level_img:
+                screen.blit(on_level_img, (0, 0))
+
             text_rect = pause_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
             screen.blit(pause_text, text_rect)
 
@@ -212,6 +224,7 @@ def main():
 
     pygame.quit()
     return 0
+
 
 if __name__ == '__main__':
     sys.exit(main())
