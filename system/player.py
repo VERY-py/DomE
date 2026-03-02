@@ -36,13 +36,11 @@ class Player(pygame.sprite.Sprite):
         self.create(pos, skin_path)
 
     def _init_pygame_once(self):
-        """Инициализация Pygame только один раз для всех игроков"""
         if not hasattr(self, '_pygame_initialized'):
             pygame.init()
             self._pygame_initialized = True
 
     def create(self, pos: Tuple[int, int], skin_path: str):
-        """Основной метод создания игрока"""
         self.original_image = pygame.image.load(skin_path)
         self.image = pygame.transform.scale(self.original_image, (30, 30))
         self.rect = self.image.get_rect(topleft=pos)
@@ -75,7 +73,6 @@ class Player(pygame.sprite.Sprite):
 
     @classmethod
     def from_preset(cls, preset_name: str, pos: Tuple[int, int], skin_path: str):
-        """Создание игрока с предустановленными настройками"""
         presets = {
             'default': {},
             'hardcore': {'jump_power': 10, 'speed': 4},
@@ -86,7 +83,6 @@ class Player(pygame.sprite.Sprite):
         return cls(pos, skin_path, keys=preset_keys)
 
     def recreate(self, pos: Optional[Tuple[int, int]] = None, skin_path: Optional[str] = None):
-        """Пересоздание игрока (респавн)"""
         if pos:
             self.rect.topleft = pos
         if skin_path:
@@ -223,7 +219,7 @@ class Player(pygame.sprite.Sprite):
             self.image = image1.copy()
 
     def xy(self):
-        print(f'{self.rect.x}, {self.rect.y} 1')
+        print(f'x = {self.rect.x}, y = {self.rect.y}')
 
     def new_room(self, room_x, room_y):
         info = pygame.display.Info()

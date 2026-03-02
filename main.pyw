@@ -6,6 +6,7 @@ from datetime import datetime
 from system.player import Player
 from system.client import Client
 from system.GUI import GUI
+from system.objects import Door
 
 
 def get_player_rect(size_state):
@@ -129,6 +130,11 @@ def main():
     level_mask, level_img, on_level_img = load_room_assets(f'room_{room_id[0]}{room_id[1]}')
     output_room = int(f"{room_id[0]}{room_id[1]}")
 
+    pos_doors = [(1095, 700, 20, 80)]
+    doors = []
+    for door in pos_doors:
+        doors.append(Door(pygame.rect.Rect(door)))
+
     running = True
     paused = False
 
@@ -140,10 +146,14 @@ def main():
                     client.send_to_server(str(GUI.pr_dir / 'json/end.json'))
                 return 0
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
+                if event.key == pygame.K_RETURN:
                     player1.xy()
                 if event.key == pygame.K_F2:
                     save_screen(screen)
+                if event.type == pygame.K_f:
+                    if not paused:
+                        for door in doors:
+                            door.on_off(player1.rect)
 
         keys = pygame.key.get_pressed()
         if keys[pygame.K_ESCAPE]:
@@ -202,6 +212,9 @@ def main():
             if on_level_img:
                 screen.blit(on_level_img, (0, 0))
 
+            for door in doors:
+                door.draw(screen)
+
         else:
             screen.fill((60, 60, 60))
             screen.blit(level_img, (0, 0))
@@ -216,6 +229,9 @@ def main():
 
             if on_level_img:
                 screen.blit(on_level_img, (0, 0))
+
+            for door in doors:
+                door.draw(screen)
 
             text_rect = pause_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
             screen.blit(pause_text, text_rect)

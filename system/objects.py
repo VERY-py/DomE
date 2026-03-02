@@ -1,78 +1,82 @@
-import pymunk
 import pygame
 
-class Square:
-    MAX_SPEED = 800.0
-    REST_THRESHOLD = 50.0
+def draw_dashed_rect(surface, color, rect, dash_length=10, gap_length=5, width=1):
+    x, y, width_rect, height_rect = rect
 
-    def __init__(self, width, height, mass, pos=(0, 0), space=None):
-        self.body = pymunk.Body(mass, pymunk.moment_for_box(mass, (width, height)))
-        self.body.position = pos
-        self.body.angle = 0
-        self.body.torque = 0
-        self.shape = pymunk.Poly.create_box(self.body, (width, height))
-        self.shape.friction = 1.2
-        self.shape.elasticity = 0.0
-        self.shape.collision_type = 1  # Для коллизий со стенами
-        if space:
-            space.add(self.body, self.shape)
-        self.width = width
-        self.height = height
-        self.on_ground = False
+    top_left = (x, y)
+    top_right = (x + width_rect, y)
+    bottom_right = (x + width_rect, y + height_rect)
+    bottom_left = (x + width_rect, y + height_rect)
 
-    def update(self, level_mask):
-        vel_length = self.body.velocity.length
-        if vel_length > self.MAX_SPEED:
-            scale = self.MAX_SPEED / vel_length
-            self.body.velocity = self.body.velocity * scale
+    draw_dashed_line(surface, color, top_left, top_right, dash_length, gap_length, width)
+    draw_dashed_line(surface, color, top_right, bottom_right, dash_length, gap_length, width)
+    draw_dashed_line(surface, color, bottom_right, bottom_left, dash_length, gap_length, width)
+    draw_dashed_line(surface, color, bottom_left, top_left, dash_length, gap_length, width)
 
-        # ✅ ДОПОЛНИТЕЛЬНАЯ проверка маски (только если нужно)
-        self.on_ground = self._check_ground(level_mask)
 
-        # ✅ ФИКСИРУЕМ вращение
-        self.body.angle = 0
-        self.body.angular_velocity = 0
-        self.body.torque = 0
+def draw_dashed_line(surface, color, start_pos, end_pos, dash_length, gap_length, width):
+    x1, y1 = start_pos
+    x2, y2 = end_pos
 
-        # ✅ АДАПТИВНЫЙ демпфинг
-        if self.on_ground and vel_length < self.REST_THRESHOLD:
-            self.body.velocity *= 0.88
-            if vel_length < 25:
-                self.body.velocity *= 0.75
+    dx = x2 - x1
+    dy = y2 - y1
+    distance = max(abs(dx), abs(dy))
+
+    if distance == 0:
+        return
+
+    step_x = dx / distance
+    step_y = dy / distance
+
+    current_distance = 0
+    is_drawing = True
+
+    while current_distance < distance:
+        if is_drawing:
+            segment_length = min(dash_length, distance - current_distance)
         else:
-            self.body.velocity *= 0.985
+            segment_length = min(gap_length, distance - current_distance)
 
-    def _check_ground(self, level_mask):
-        """Только проверка земли"""
-        rect = pygame.Rect(
-            self.body.position.x - self.width / 2,
-            self.body.position.y - self.height / 2,
-            self.width, self.height
-        )
+        end_distance = current_distance + segment_length
+        x_end = x1 + step_x * end_distance
+        y_end = y1 + step_y * end_distance
 
-        bottom_points = [
-            (rect.left + self.width * 0.25, rect.bottom - 1),
-            (rect.centerx, rect.bottom - 1),
-            (rect.right - self.width * 0.25, rect.bottom - 1)
-        ]
+        if is_drawing:
+            pygame.draw.line(
+                surface,
+                color,
+                (x1 + step_x * current_distance, y1 + step_y * current_distance),
+                (x_end, y_end),
+                width
+            )
 
-        mask_size = level_mask.get_size()
-        contacts = 0
+        current_distance = end_distance
+        is_drawing = not is_drawing
 
-        for px, py in bottom_points:
-            ix, iy = int(px), int(py)
-            if (0 <= ix < mask_size[0] and 0 <= iy < mask_size[1] and
-                    level_mask.get_at((ix, iy))):
-                contacts += 1
+class Door:
+    def __init__(self, rect):
+        self.is_rect = rect
+        self.open = False
+        self.rect = self.is_rect.copy()
 
-        return contacts >= 2
+    def on_off(self, pl_rect):
+        r = pygame.rect.Rect(pl_rect.x - 20, pl_rect.y, pl_rect.width + 20, pl_rect.height)
+        if r.colliderect(self.is_rect):
+            if self.open:
+                self.open = False
+            else:
+                self.open = True
 
-    def get_draw_vertices(self):
-        center = self.body.position
-        verts = [
-            (center.x - self.width / 2, center.y - self.height / 2),
-            (center.x + self.width / 2, center.y - self.height / 2),
-            (center.x + self.width / 2, center.y + self.height / 2),
-            (center.x - self.width / 2, center.y + self.height / 2)
-        ]
-        return verts
+    def draw(self, screen):
+        if self.open:
+            if self.rect.width > 0:
+                self.rect = pygame.rect.Rect(self.rect.x, self.rect.y, self.rect.width - 1, self.rect.height)
+                pygame.draw.rect(screen, (110, 40, 0), self.rect)
+            else:
+                draw_dashed_rect(screen, (0, 255, 0), self.is_rect)
+        elif not self.open:
+            if self.rect.width < self.is_rect.width:
+                self.rect = pygame.rect.Rect(self.rect.x, self.rect.y, self.rect.width + 1, self.rect.height)
+                draw_dashed_rect(screen, (0, 255, 0), self.is_rect)
+            else:
+                pygame.draw.rect(screen, (110, 40, 0), self.rect)

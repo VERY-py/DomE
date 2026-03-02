@@ -1,6 +1,7 @@
 import socket
 import struct
 import threading
+from system.GUI import GUI
 
 class Client:
     def __init__(self, host='localhost', port=12345):
