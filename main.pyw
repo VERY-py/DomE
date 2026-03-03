@@ -150,7 +150,7 @@ def main():
                     player1.xy()
                 if event.key == pygame.K_F2:
                     save_screen(screen)
-                if event.type == pygame.K_f:
+                if event.key == pygame.K_f:
                     if not paused:
                         for door in doors:
                             door.on_off(player1.rect)
