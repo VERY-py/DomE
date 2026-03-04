@@ -7,6 +7,7 @@ from system.player import Player
 from system.client import Client
 from system.GUI import GUI
 from system.objects import Door
+from system.anim_player import Animation
 
 
 def get_player_rect(size_state):
@@ -106,13 +107,15 @@ def main():
     font = pygame.font.Font(None, 50)
     font_small = pygame.font.Font(None, 30)
     clock = pygame.time.Clock()
-    pause_text = font.render("E - продолжить. TAB - выход.", True, (255, 255, 255))
+    pause_text = font.render("TAB - продолжить. ESC - выход.", True, (255, 255, 255))
 
     room_id = [1, 1]
     coords = (735, 749)
     input_data = None
 
-    player1 = Player(coords, str(GUI.pr_dir / gui.image_path1))
+    heart_anim = Animation(str(GUI.pr_dir / 'assets/anim/heart'), fps=5)
+
+    player1 = Player(coords, room_id, str(GUI.pr_dir / gui.image_path1))
 
     remote_skin = pygame.image.load(str(GUI.pr_dir / gui.image_path2))
 
@@ -130,16 +133,25 @@ def main():
     level_mask, level_img, on_level_img = load_room_assets(f'room_{room_id[0]}{room_id[1]}')
     output_room = int(f"{room_id[0]}{room_id[1]}")
 
-    pos_doors = [(1095, 700, 20, 80)]
+    pos_doors = [
+        [(717, 520, 10, 79), [2, 1]],
+        [(912, 520, 10, 79), [2, 1]],
+        [(1143, 520, 10, 79), [2, 1]],
+        [(1426, 546, 10, 53), [2, 1]],
+        [(1495, 547, 10, 52), [2, 1]],
+        [(1425, 470, 10, 40), [2, 1]],
+        [(1425, 381, 10, 47), [2, 1]],
+        [(1425, 301, 10, 48), [2, 1]],
+    ]
     doors = []
     for door in pos_doors:
-        doors.append(Door(pygame.rect.Rect(door)))
+        doors.append(Door(pygame.rect.Rect(door[0]), door[1]))
 
     running = True
     paused = False
 
     while running:
-        clock.tick(60)
+        dt = clock.tick(60) / 1000
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 if client:
@@ -148,22 +160,21 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     player1.xy()
+                    print(f"mouse: {pygame.mouse.get_pos()}")
                 if event.key == pygame.K_F2:
                     save_screen(screen)
                 if event.key == pygame.K_f:
                     if not paused:
                         for door in doors:
                             door.on_off(player1.rect)
-
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_ESCAPE]:
-            paused = True
-        if keys[pygame.K_TAB] and paused:
-            if client:
-                client.send_to_server(str(GUI.pr_dir / 'json/end.json'))
-            return 0
-        if keys[pygame.K_e] and paused:
-            paused = False
+                if event.key == pygame.K_ESCAPE and paused:
+                    if client:
+                        client.send_to_server(str(GUI.pr_dir / 'json/end.json'))
+                    return 0
+                elif event.key == pygame.K_TAB and paused:
+                    paused = False
+                elif event.key == pygame.K_ESCAPE:
+                    paused = True
 
         if not paused:
             room_x, room_y, new_room = player1.new_room(room_id[0], room_id[1])
@@ -176,7 +187,7 @@ def main():
                 room_id = [room_x, room_y]
                 output_room = int(f"{room_id[0]}{room_id[1]}")
 
-            player1.update(level_mask, level_img)
+            player1.update(level_mask, level_img, doors)
 
             if gui.multiplayer:
                 output = {
@@ -207,13 +218,16 @@ def main():
                         draw_remote_player(screen, font_small, nick, data, remote_skin, output_room)
 
             screen.blit(player1.image, player1.rect)
+            if heart_anim.update(dt):
+                heart_anim.play(screen, (int(player1.rect.x + 10), int(player1.rect.y + 10)))
             draw_nick(screen, font_small, gui.name, player1.rect)
 
             if on_level_img:
                 screen.blit(on_level_img, (0, 0))
 
             for door in doors:
-                door.draw(screen)
+                if door.room == room_id:
+                    door.draw(screen)
 
         else:
             screen.fill((60, 60, 60))
@@ -225,13 +239,16 @@ def main():
                         draw_remote_player(screen, font_small, nick, data, remote_skin, output_room)
 
             screen.blit(player1.image, player1.rect)
+            if heart_anim.update(dt):
+                heart_anim.play(screen, (int(player1.rect.x + 10), int(player1.rect.y + 10)))
             draw_nick(screen, font_small, gui.name, player1.rect)
 
             if on_level_img:
                 screen.blit(on_level_img, (0, 0))
 
             for door in doors:
-                door.draw(screen)
+                if door.room == room_id:
+                    door.draw(screen)
 
             text_rect = pause_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
             screen.blit(pause_text, text_rect)
