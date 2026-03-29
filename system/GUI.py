@@ -2,12 +2,20 @@ import pygame
 import pygame_gui
 import os
 import json
-from pygame_gui.elements import UIButton, UITextEntryLine, UICheckBox
-from pygame_gui.windows import UIFileDialog
+from pygame_gui.elements import UIButton, UITextEntryLine, UICheckBox, UIDropDownMenu
 from pygame_gui.elements import UILabel
 from pygame_gui.elements.ui_panel import UIPanel
 from pathlib import Path
+
 pygame.init()
+
+FPS = 60
+
+SKINS = {
+    "Кот": "assets/skins/player1.png",
+    "Хрен": "assets/skins/player2.png",
+}
+
 
 class PresetWindow:
     def __init__(self, manager, gui):
@@ -29,7 +37,8 @@ class PresetWindow:
 
         self.window = UIPanel(
             relative_rect=pygame.Rect(100, 50, 500, 450),
-            manager=self.manager
+            manager=self.manager,
+            starting_height=2
         )
 
         title = UILabel(
@@ -70,7 +79,8 @@ class PresetWindow:
         self.list_panel = UIPanel(
             pygame.Rect(10, 90, 480, 300),
             container=self.window,
-            manager=self.manager
+            manager=self.manager,
+            starting_height=3
         )
 
         close_btn = UIButton(
@@ -107,6 +117,11 @@ class PresetWindow:
         if not hasattr(self, 'list_panel'):
             return
 
+        # Очищаем старые кнопки
+        for btn in self.preset_buttons:
+            btn.kill()
+        self.preset_buttons = []
+
         start_idx = self.current_page * self.items_per_page
         end_idx = start_idx + self.items_per_page
         page_presets = self.filtered_presets[start_idx:end_idx]
@@ -137,6 +152,7 @@ class PresetWindow:
                 )
                 prev_btn.is_pagination = True
                 prev_btn.direction = "prev"
+                self.preset_buttons.append(prev_btn)
 
             page_label = UILabel(
                 pygame.Rect(60, y_pos + 3, 80, 20),
@@ -154,6 +170,7 @@ class PresetWindow:
                 )
                 next_btn.is_pagination = True
                 next_btn.direction = "next"
+                self.preset_buttons.append(next_btn)
 
     def process_preset_events(self, event):
         if not self.window:
@@ -167,22 +184,41 @@ class PresetWindow:
 
             if hasattr(event.ui_element, 'preset_name'):
                 preset_data = self.gui.presets[event.ui_element.preset_name]
-                self.gui.entry_path1.set_text(preset_data.get("player1_img", ""))
-                self.gui.entry_path2.set_text(preset_data.get("player2_img", ""))
+                # Устанавливаем значения в dropdown'ы основного GUI
+                skin1 = preset_data.get("skin1", list(SKINS.keys())[0])
+                skin2 = preset_data.get("skin2", list(SKINS.keys())[0])
+
+                skins_list = list(SKINS.keys())
+                if skin1 in skins_list:
+                    self.gui.skin1_dropdown.set_selected_option(skin1)
+                if skin2 in skins_list:
+                    self.gui.skin2_dropdown.set_selected_option(skin2)
+
                 self.gui.entry_host.set_text(preset_data.get("host", "localhost"))
                 self.gui.entry_port.set_text(preset_data.get("port", "12345"))
                 self.gui.entry_name.set_text(preset_data.get("name", ""))
                 return True
 
             if self.load_btn and event.ui_element == self.load_btn:
-                selected_preset = self.filtered_presets[self.current_page * self.items_per_page] if self.filtered_presets else None
-                if selected_preset and selected_preset in self.gui.presets:
-                    preset_data = self.gui.presets[selected_preset]
-                    self.gui.entry_path1.set_text(preset_data.get("player1_img", ""))
-                    self.gui.entry_path2.set_text(preset_data.get("player2_img", ""))
-                    self.gui.entry_host.set_text(preset_data.get("host", "localhost"))
-                    self.gui.entry_port.set_text(preset_data.get("port", "12345"))
-                    self.gui.entry_name.set_text(preset_data.get("name", ""))
+                # Загружаем выбранный пресет (если есть выделенный)
+                if self.filtered_presets:
+                    # Получаем текущую страницу и выбираем первый пресет на ней
+                    start_idx = self.current_page * self.items_per_page
+                    if start_idx < len(self.filtered_presets):
+                        preset_name = self.filtered_presets[start_idx]
+                        preset_data = self.gui.presets[preset_name]
+                        skin1 = preset_data.get("skin1", list(SKINS.keys())[0])
+                        skin2 = preset_data.get("skin2", list(SKINS.keys())[0])
+
+                        skins_list = list(SKINS.keys())
+                        if skin1 in skins_list:
+                            self.gui.skin1_dropdown.set_selected_option(skin1)
+                        if skin2 in skins_list:
+                            self.gui.skin2_dropdown.set_selected_option(skin2)
+
+                        self.gui.entry_host.set_text(preset_data.get("host", "localhost"))
+                        self.gui.entry_port.set_text(preset_data.get("port", "12345"))
+                        self.gui.entry_name.set_text(preset_data.get("name", ""))
                 return True
 
             if self.save_btn and event.ui_element == self.save_btn:
@@ -191,8 +227,8 @@ class PresetWindow:
                     return True
 
                 self.gui.presets[preset_name] = {
-                    "player1_img": self.gui.entry_path1.get_text().strip(),
-                    "player2_img": self.gui.entry_path2.get_text().strip(),
+                    "skin1": self.gui.skin1_dropdown.selected_option,
+                    "skin2": self.gui.skin2_dropdown.selected_option,
                     "host": self.gui.entry_host.get_text().strip(),
                     "port": self.gui.entry_port.get_text().strip(),
                     "name": self.gui.entry_name.get_text().strip()
@@ -217,16 +253,17 @@ class PresetWindow:
 
         return False
 
+
 class GUI:
     pr_dir = Path(__file__).parent.parent
 
-    def __init__(self, spawn_points):
+    def __init__(self):
         self.screen = pygame.display.set_mode((650, 400))
         self.manager = pygame_gui.UIManager((650, 400))
         self.clock = pygame.time.Clock()
 
-        self.image_path1 = "assets/ico/player1.png"
-        self.image_path2 = "assets/ico/player2.png"
+        self.image_path1 = "assets/skins/player1.png"
+        self.image_path2 = "assets/skins/player1.png"
         self.host = "localhost"
         self.port = "12345"
         self.multiplayer = False
@@ -234,10 +271,7 @@ class GUI:
         self.running = True
 
         self.presets = self.load_presets()
-        self.spawn_points = spawn_points
 
-        self.current_entry = None
-        self.file_dialog = None
         self.preset_window = None
 
         self.exit = False
@@ -245,24 +279,41 @@ class GUI:
         self.setup_ui()
 
     def setup_ui(self):
-        self.btn_browse1 = UIButton(relative_rect=pygame.Rect(10, 10, 200, 30),
-                                    text='Выбор скина для игрока 1',
-                                    manager=self.manager)
-        self.entry_path1 = UITextEntryLine(relative_rect=pygame.Rect(220, 10, 400, 30),
-                                           manager=self.manager)
+        # Создаём основной фон (базовый слой)
+        background = UIPanel(
+            relative_rect=pygame.Rect(0, 0, 650, 400),
+            starting_height=0,
+            manager=self.manager
+        )
 
-        self.btn_browse2 = UIButton(relative_rect=pygame.Rect(10, 60, 200, 30),
-                                    text='Выбор скина для игрока 2',
-                                    manager=self.manager)
-        self.entry_path2 = UITextEntryLine(relative_rect=pygame.Rect(220, 60, 400, 30),
-                                           manager=self.manager)
+        # Выбор скина для игрока 1
+        UILabel(relative_rect=pygame.Rect(10, 10, 150, 30),
+                text="Скин игрока 1", manager=self.manager)
+        self.skin1_dropdown = UIDropDownMenu(
+            options_list=list(SKINS.keys()),
+            starting_option=list(SKINS.keys())[0],
+            relative_rect=pygame.Rect(160, 10, 200, 30),
+            manager=self.manager,
+            anchors={'left': 'left', 'right': 'left', 'top': 'top', 'bottom': 'top'}
+        )
+
+        # Выбор скина для игрока 2 (удалённого)
+        UILabel(relative_rect=pygame.Rect(10, 60, 150, 30),
+                text="Скин игрока 2", manager=self.manager)
+        self.skin2_dropdown = UIDropDownMenu(
+            options_list=list(SKINS.keys()),
+            starting_option=list(SKINS.keys())[0],
+            relative_rect=pygame.Rect(160, 60, 200, 30),
+            manager=self.manager,
+            anchors={'left': 'left', 'right': 'left', 'top': 'top', 'bottom': 'top'}
+        )
 
         self.checkbox_multi = UICheckBox(relative_rect=pygame.Rect(10, 110, 50, 30),
                                          text='Сетевая игра',
                                          manager=self.manager)
 
         UILabel(relative_rect=pygame.Rect(220, 110, 150, 30),
-                text="Хост", manager=self.manager)
+                text="IP", manager=self.manager)
         self.entry_host = UITextEntryLine(relative_rect=pygame.Rect(380, 110, 150, 30),
                                           manager=self.manager)
 
@@ -313,18 +364,6 @@ class GUI:
         except Exception as e:
             return {}
 
-    def handle_file_dialog(self, target_entry):
-        if self.file_dialog:
-            self.file_dialog.kill()
-        self.file_dialog = UIFileDialog(
-            pygame.Rect(50, 50, 550, 400),
-            self.manager,
-            window_title='Выберите скин',
-            initial_file_path=str(self.pr_dir),
-            allow_existing_files_only=True
-        )
-        self.current_entry = target_entry
-
     def process_events(self):
         time_delta = self.clock.tick(60) / 1000.0
 
@@ -337,25 +376,17 @@ class GUI:
                 continue
 
             if event.type == pygame_gui.UI_BUTTON_PRESSED:
-                if event.ui_element == self.btn_browse1:
-                    self.handle_file_dialog(self.entry_path1)
-                elif event.ui_element == self.btn_browse2:
-                    self.handle_file_dialog(self.entry_path2)
-                elif event.ui_element == self.btn_presets:
+                if event.ui_element == self.btn_presets:
                     self.on_presets_click()
                 elif event.ui_element == self.btn_start:
                     self.on_start()
 
-            if event.type == pygame_gui.UI_FILE_DIALOG_PATH_PICKED:
-                if self.current_entry:
-                    self.current_entry.set_text(event.text)
-                    self.current_entry = None
-
-            if event.type == pygame_gui.UI_WINDOW_CLOSE:
-                self.file_dialog = None
-                self.current_entry = None
-                if self.preset_window:
-                    self.preset_window.window = None
+            # Обработка изменения выпадающих списков
+            if event.type == pygame_gui.UI_DROP_DOWN_MENU_CHANGED:
+                if event.ui_element == self.skin1_dropdown:
+                    pass
+                elif event.ui_element == self.skin2_dropdown:
+                    pass
 
             if event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
                 if event.ui_element == self.entry_host:
@@ -374,8 +405,11 @@ class GUI:
         self.manager.update(time_delta)
 
     def on_start(self):
-        self.image_path1 = self.entry_path1.get_text().strip()
-        self.image_path2 = self.entry_path2.get_text().strip()
+        # Получаем выбранные скины из dropdown'ов и формируем полные пути
+        skin1_name = self.skin1_dropdown.selected_option
+        skin2_name = self.skin2_dropdown.selected_option
+        self.image_path1 = SKINS.get(skin1_name, list(SKINS.values())[0])
+        self.image_path2 = SKINS.get(skin2_name, list(SKINS.values())[0])
 
         if not (self.image_path1 and self.image_path2):
             return
@@ -391,15 +425,8 @@ class GUI:
         pygame.display.set_caption("Запуск DomE 0.1")
         while self.running:
             self.process_events()
-
             self.screen.fill((50, 50, 50))
             self.manager.draw_ui(self.screen)
             pygame.display.update()
-
         pygame.quit()
         return self.exit
-
-if __name__ == "__main__":
-    spawn_points = []
-    gui = GUI(spawn_points)
-    gui.run()

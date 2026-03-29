@@ -1,5 +1,9 @@
+# player.py
 import pygame
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict, Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from system.physics_figure import PhysicFigure
 
 
 class Player(pygame.sprite.Sprite):
@@ -63,25 +67,17 @@ class Player(pygame.sprite.Sprite):
         self.room = room
 
         self.coyote_time = 0
-        self.coyote_time_max = 4 # Длительность Coyote Time (кадров)
+        self.coyote_time_max = 4  # Длительность Coyote Time (кадров)
         self.was_on_ground = False
 
         self.size_state = 0
         self.prev_keys = {}
         self.last_direction = 1
 
-    @classmethod
-    def from_preset(cls, preset_name: str, pos: Tuple[int, int], skin_path: str):
-        presets = {
-            'default': {},
-            'hardcore': {'jump_power': 10, 'speed': 4},
-            'speedrunner': {'speed': 8, 'jump_power': 14}
-        }
+        self.on_object = False
 
-        preset_keys = presets.get(preset_name, {})
-        return cls(pos, skin_path, keys=preset_keys)
-
-    def recreate(self, pos: Optional[Tuple[int, int]] = None, skin_path: Optional[str] = None, room: Optional[list[int]] = None):
+    def recreate(self, pos: Optional[Tuple[int, int]] = None, skin_path: Optional[str] = None,
+                 room: Optional[list[int]] = None):
         if pos:
             self.rect.topleft = pos
         if skin_path:
@@ -95,7 +91,7 @@ class Player(pygame.sprite.Sprite):
         self.wall_jump_timer = 0
         self.size_state = 0
         self.coyote_time = 0
-        self.health = self.max_health
+        self.on_object = False
         self.image = pygame.transform.scale(self.original_image, (30, 30))
         self.mask = pygame.mask.from_surface(self.image)
 
@@ -171,7 +167,46 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.bottom = old_bottom
 
-    def update(self, level_mask, level_surface, doors: list = None):
+    def check_standing_on_objects(self, objects_list: List['PhysicFigure']) -> bool:
+        """
+        Проверяет, стоит ли игрок на каком-либо физическом объекте.
+
+        Args:
+            objects_list: список физических объектов (PhysicFigure)
+
+        Returns:
+            bool: True если игрок стоит на объекте
+        """
+        was_on_object = self.on_object
+        self.on_object = False
+
+        for obj in objects_list:
+            if obj.is_held:
+                continue
+
+            if (abs(self.rect.bottom - obj.rect.top) <= 8 and
+                    self.rect.right > obj.rect.left + 5 and
+                    self.rect.left < obj.rect.right - 5 and
+                    self.vel.y >= 0):
+
+                self.rect.bottom = obj.rect.top
+                self.on_ground = True
+                self.on_object = True
+                self.vel.y = 0
+                return True
+
+        return False
+
+    def update(self, level_mask, level_surface, doors: list = None, physics_objects: List['PhysicFigure'] = None):
+        """
+        Обновление игрока с поддержкой физических объектов.
+
+        Args:
+            level_mask: маска уровня для коллизий
+            level_surface: поверхность уровня (не используется)
+            doors: список дверей
+            physics_objects: список физических объектов (квадраты, ящики и т.д.)
+        """
         keys = pygame.key.get_pressed()
 
         for k in (self.keys['down'], self.keys['up'], self.keys['size_small']):
@@ -212,17 +247,25 @@ class Player(pygame.sprite.Sprite):
 
         self.collide(level_mask, doors)
 
-        if self.on_ground:
+        on_object = False
+        if physics_objects:
+            on_object = self.check_standing_on_objects(physics_objects)
+
+        if on_object:
+            self.on_ground = True
+
+        if self.on_ground or on_object:
             self.coyote_time = self.coyote_time_max
         elif prev_on_ground:
             self.coyote_time = self.coyote_time_max
         else:
             self.coyote_time = max(0, self.coyote_time - 1)
 
-        if keys[self.keys['jump']] and (self.on_ground or self.coyote_time > 0) and self.vel.y >= 0:
+        if keys[self.keys['jump']] and (self.on_ground or on_object or self.coyote_time > 0) and self.vel.y >= 0:
             self.vel.y = -self.jump_power
             self.coyote_time = 0
             self.on_ground = False
+            self.on_object = False
 
         if keys[self.keys['jump']] and self.can_wall_jump and not self.on_ground:
             self.vel.y = -self.jump_power

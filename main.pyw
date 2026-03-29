@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 from system.player import Player
 from system.client import Client
-from system.GUI import GUI
-from system.objects import Door
+from system.GUI import GUI, FPS
+from system.objects import Door, PhysikSq
 from system.anim_player import Animation
 
 
@@ -85,13 +85,31 @@ def draw_remote_player(screen, font, nick, data, skin_image, output_room):
         draw_nick(screen, font, nick, rect)
 
 
-def main():
-    spawn_points = {
-        "Вход в подземки": [(1, 1), (735, 749)],
-        "Гора": [(3, 0), (1124, 807)],
-    }
+def create_square(rect_coords, room_coords, width, height):
+    """Создает квадрат с правильной маской для его комнаты"""
+    wrect = pygame.Rect(0, 0, width, height)
+    rooma = (wrect, room_coords)
 
-    gui = GUI(spawn_points)
+    room_str = f'room_{room_coords[0]}{room_coords[1]}'
+    sq_level_mask, _, _ = load_room_assets(room_str)
+
+    if sq_level_mask is None:
+        sq_level_mask = pygame.mask.Mask((width, height), fill=False)
+
+    return PhysikSq(rect_coords, rooma, color=(255, 0, 0), level_mask=sq_level_mask)
+
+def load_custom_cursor():
+    """Загружает пользовательский курсор из файла."""
+    cursor_path = str(GUI.pr_dir / 'assets/cursor.png')
+    try:
+        cursor_img = pygame.image.load(cursor_path).convert_alpha()
+        cursor_img = pygame.transform.scale(cursor_img, (24, 24))
+        return cursor_img
+    except FileNotFoundError:
+        return None
+
+def main():
+    gui = GUI()
     exit_code = gui.run()
     if exit_code:
         return 0
@@ -103,6 +121,12 @@ def main():
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
     pygame.display.set_caption("DomE")
     pygame.display.set_icon(pygame.image.load(str(GUI.pr_dir / 'assets/logo_dome.ico')))
+
+    custom_cursor = load_custom_cursor()
+    if custom_cursor:
+        pygame.mouse.set_visible(False)
+    else:
+        pygame.mouse.set_visible(True)
 
     font = pygame.font.Font(None, 50)
     font_small = pygame.font.Font(None, 30)
@@ -133,6 +157,16 @@ def main():
     level_mask, level_img, on_level_img = load_room_assets(f'room_{room_id[0]}{room_id[1]}')
     output_room = int(f"{room_id[0]}{room_id[1]}")
 
+    squares_data = [
+        (pygame.Rect(70, 30, 30, 30), [1, 1]),
+        (pygame.Rect(370, 30, 30, 30), [1, 1])
+    ]
+
+    sqs = []
+    for rect_coords, room_coords in squares_data:
+        sq = create_square(rect_coords, room_coords, WIDTH, HEIGHT)
+        sqs.append(sq)
+
     pos_doors = [
         [(717, 520, 10, 79), [2, 1]],
         [(912, 520, 10, 79), [2, 1]],
@@ -145,13 +179,17 @@ def main():
     ]
     doors = []
     for door in pos_doors:
-        doors.append(Door(pygame.rect.Rect(door[0]), door[1]))
+        doors.append(Door(pygame.Rect(door[0]), door[1]))
+
+    held_square = None
 
     running = True
     paused = False
 
+
     while running:
-        dt = clock.tick(60) / 1000
+        dt = clock.tick(FPS) / 1000
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 if client:
@@ -163,10 +201,22 @@ def main():
                     print(f"mouse: {pygame.mouse.get_pos()}")
                 if event.key == pygame.K_F2:
                     save_screen(screen)
-                if event.key == pygame.K_f:
-                    if not paused:
-                        for door in doors:
-                            door.on_off(player1.rect)
+                if event.key == pygame.K_f and not paused:
+                    if held_square is not None:
+                        held_square.drop(player1, throw=False)
+                        held_square = None
+                    else:
+                        closest_sq = None
+                        min_distance = 50
+                        for sq in sqs:
+                            if not sq.is_held:
+                                distance = sq.get_distance_to_player(player1)
+                                if distance < min_distance:
+                                    min_distance = distance
+                                    closest_sq = sq
+                        if closest_sq:
+                            closest_sq.pick_up(player1)
+                            held_square = closest_sq
                 if event.key == pygame.K_ESCAPE and paused:
                     if client:
                         client.send_to_server(str(GUI.pr_dir / 'json/end.json'))
@@ -175,6 +225,32 @@ def main():
                     paused = False
                 elif event.key == pygame.K_ESCAPE:
                     paused = True
+
+            if event.type == pygame.MOUSEBUTTONDOWN and not paused:
+                if held_square is not None:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    dx = mouse_x - player1.rect.centerx
+                    dy = mouse_y - player1.rect.centery
+                    length = (dx**2 + dy**2)**0.5
+                    if length == 0:
+                        dx, dy = 1, 0
+                        length = 1
+
+                    norm_dx = dx / length
+                    norm_dy = dy / length
+
+                    if event.button == 1:
+                        force = 7
+                    elif event.button == 3:
+                        force = 3
+                    else:
+                        continue
+
+                    vel_x = norm_dx * force
+                    vel_y = norm_dy * force
+
+                    held_square.drop(player1, throw_velocity=(vel_x, vel_y))
+                    held_square = None
 
         if not paused:
             room_x, room_y, new_room = player1.new_room(room_id[0], room_id[1])
@@ -187,7 +263,15 @@ def main():
                 room_id = [room_x, room_y]
                 output_room = int(f"{room_id[0]}{room_id[1]}")
 
-            player1.update(level_mask, level_img, doors)
+                for sq in sqs:
+                    sq.level_mask = level_mask
+
+            player1.update(level_mask, level_img, doors, physics_objects=sqs)
+
+            for sq in sqs:
+                sq.update(player1, all_objects=sqs)
+                if not sq.is_held:
+                    sq.resolve_collision_with_player(player1)
 
             if gui.multiplayer:
                 output = {
@@ -218,16 +302,25 @@ def main():
                         draw_remote_player(screen, font_small, nick, data, remote_skin, output_room)
 
             screen.blit(player1.image, player1.rect)
+
             if heart_anim.update(dt):
                 heart_anim.play(screen, (int(player1.rect.x + 10), int(player1.rect.y + 10)))
-            draw_nick(screen, font_small, gui.name, player1.rect)
 
-            if on_level_img:
-                screen.blit(on_level_img, (0, 0))
+            for sq in sqs:
+                sq.draw(screen, player1.room)
 
             for door in doors:
                 if door.room == room_id:
                     door.draw(screen)
+
+            if on_level_img:
+                screen.blit(on_level_img, (0, 0))
+
+            draw_nick(screen, font_small, gui.name, player1.rect)
+
+            if custom_cursor:
+                mouse_pos = pygame.mouse.get_pos()
+                screen.blit(custom_cursor, mouse_pos)
 
         else:
             screen.fill((60, 60, 60))
@@ -239,8 +332,13 @@ def main():
                         draw_remote_player(screen, font_small, nick, data, remote_skin, output_room)
 
             screen.blit(player1.image, player1.rect)
+
             if heart_anim.update(dt):
                 heart_anim.play(screen, (int(player1.rect.x + 10), int(player1.rect.y + 10)))
+
+            for sq in sqs:
+                sq.draw(screen, player1.room)
+
             draw_nick(screen, font_small, gui.name, player1.rect)
 
             if on_level_img:
@@ -253,8 +351,13 @@ def main():
             text_rect = pause_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
             screen.blit(pause_text, text_rect)
 
+            if custom_cursor:
+                mouse_pos = pygame.mouse.get_pos()
+                screen.blit(custom_cursor, mouse_pos)
+
         pygame.display.flip()
 
+    pygame.mouse.set_visible(True)
     pygame.quit()
     return 0
 

@@ -1,7 +1,13 @@
 {
-  "База": {
-    "player1_img": "assets/ico/player1.png",
-    "player2_img": "assets/ico/player2.png",
+  "BAS": {
+    "skin1": [
+      "Кот",
+      "Кот"
+    ],
+    "skin2": [
+      "Хрен",
+      "Хрен"
+    ],
     "host": "localhost",
     "port": "12345",
     "name": "UwU"
