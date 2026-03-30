@@ -12,8 +12,11 @@ pygame.init()
 FPS = 60
 
 SKINS = {
-    "Кот": "assets/skins/player1.png",
-    "Хрен": "assets/skins/player2.png",
+    "Участник": "assets/skins/player_st.png",
+    "Клоун": "assets/skins/player_cln.png",
+    "Кибер": "assets/skins/player_cp.png",
+    "Противогазный": "assets/skins/player_prt.png",
+    "???": "assets/skins/player_tank.png",
 }
 
 
@@ -184,7 +187,6 @@ class PresetWindow:
 
             if hasattr(event.ui_element, 'preset_name'):
                 preset_data = self.gui.presets[event.ui_element.preset_name]
-                # Устанавливаем значения в dropdown'ы основного GUI
                 skin1 = preset_data.get("skin1", list(SKINS.keys())[0])
                 skin2 = preset_data.get("skin2", list(SKINS.keys())[0])
 
@@ -262,8 +264,8 @@ class GUI:
         self.manager = pygame_gui.UIManager((650, 400))
         self.clock = pygame.time.Clock()
 
-        self.image_path1 = "assets/skins/player1.png"
-        self.image_path2 = "assets/skins/player1.png"
+        self.image_path1 = "assets/skins/player_st.png"
+        self.image_path2 = "assets/skins/player_st.png"
         self.host = "localhost"
         self.port = "12345"
         self.multiplayer = False
@@ -279,14 +281,12 @@ class GUI:
         self.setup_ui()
 
     def setup_ui(self):
-        # Создаём основной фон (базовый слой)
         background = UIPanel(
             relative_rect=pygame.Rect(0, 0, 650, 400),
             starting_height=0,
             manager=self.manager
         )
 
-        # Выбор скина для игрока 1
         UILabel(relative_rect=pygame.Rect(10, 10, 150, 30),
                 text="Скин игрока 1", manager=self.manager)
         self.skin1_dropdown = UIDropDownMenu(
@@ -297,7 +297,6 @@ class GUI:
             anchors={'left': 'left', 'right': 'left', 'top': 'top', 'bottom': 'top'}
         )
 
-        # Выбор скина для игрока 2 (удалённого)
         UILabel(relative_rect=pygame.Rect(10, 60, 150, 30),
                 text="Скин игрока 2", manager=self.manager)
         self.skin2_dropdown = UIDropDownMenu(
@@ -381,12 +380,20 @@ class GUI:
                 elif event.ui_element == self.btn_start:
                     self.on_start()
 
-            # Обработка изменения выпадающих списков
             if event.type == pygame_gui.UI_DROP_DOWN_MENU_CHANGED:
                 if event.ui_element == self.skin1_dropdown:
-                    pass
+                    # Преобразуем выбранное значение в строку (на случай если это кортеж)
+                    selected = event.text if hasattr(event, 'text') else event.ui_element.selected_option
+                    if isinstance(selected, (tuple, list)):
+                        selected = selected[0] if selected else list(SKINS.keys())[0]
+                    skin_name = str(selected)
+                    self.image_path1 = SKINS.get(skin_name, "assets/skins/player_st.png")
                 elif event.ui_element == self.skin2_dropdown:
-                    pass
+                    selected = event.text if hasattr(event, 'text') else event.ui_element.selected_option
+                    if isinstance(selected, (tuple, list)):
+                        selected = selected[0] if selected else list(SKINS.keys())[0]
+                    skin_name = str(selected)
+                    self.image_path2 = SKINS.get(skin_name, "assets/skins/player_st.png")
 
             if event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
                 if event.ui_element == self.entry_host:
@@ -405,14 +412,32 @@ class GUI:
         self.manager.update(time_delta)
 
     def on_start(self):
-        # Получаем выбранные скины из dropdown'ов и формируем полные пути
-        skin1_name = self.skin1_dropdown.selected_option
-        skin2_name = self.skin2_dropdown.selected_option
-        self.image_path1 = SKINS.get(skin1_name, list(SKINS.values())[0])
-        self.image_path2 = SKINS.get(skin2_name, list(SKINS.values())[0])
+        # Получаем выбранные названия скинов из dropdown
+        skin1_selected = self.skin1_dropdown.selected_option
+        skin2_selected = self.skin2_dropdown.selected_option
 
-        if not (self.image_path1 and self.image_path2):
-            return
+        # Преобразуем в строку, если это кортеж
+        if isinstance(skin1_selected, (tuple, list)):
+            skin1_name = skin1_selected[0] if skin1_selected else list(SKINS.keys())[0]
+        else:
+            skin1_name = str(skin1_selected)
+
+        if isinstance(skin2_selected, (tuple, list)):
+            skin2_name = skin2_selected[0] if skin2_selected else list(SKINS.keys())[0]
+        else:
+            skin2_name = str(skin2_selected)
+
+        # Получаем пути к файлам скинов
+        self.image_path1 = SKINS.get(skin1_name)
+        self.image_path2 = SKINS.get(skin2_name)
+
+        # Проверяем, что скины найдены
+        if self.image_path1 is None:
+            print(f"Скин '{skin1_name}' не найден, используется скин по умолчанию")
+            self.image_path1 = "assets/skins/player_st.png"
+        if self.image_path2 is None:
+            print(f"Скин '{skin2_name}' не найден, используется скин по умолчанию")
+            self.image_path2 = "assets/skins/player_st.png"
 
         if self.multiplayer and not self.name:
             return
@@ -422,7 +447,7 @@ class GUI:
         self.running = False
 
     def run(self):
-        pygame.display.set_caption("Запуск DomE 0.1")
+        pygame.display.set_caption("Запуск CUBE")
         while self.running:
             self.process_events()
             self.screen.fill((50, 50, 50))

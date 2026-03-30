@@ -16,14 +16,14 @@ class PhysicFigure(ABC):
             room: tuple,
             level_mask: Optional[pygame.mask.Mask] = None,
             color: Tuple[int, int, int] = (76, 76, 76),
-            gravity: float = 0.3,
-            max_speed_x: float = 15,
-            max_speed_y: float = 20,
+            gravity: float = 0.6,
+            max_speed_x: float = 500,
+            max_speed_y: float = 1000,
             bounce: float = 0.3,
-            friction_air: float = 0.98,
+            friction_air: float = 0.99,
             friction_ground: float = 0.92,
             friction_ground_min_speed: float = 0.5,
-            mass: float = 1.0  # Добавляем массу для физики
+            mass: float = 1.0
     ):
         """
         Инициализация физического объекта.
@@ -45,7 +45,7 @@ class PhysicFigure(ABC):
         self.friction_air = friction_air
         self.friction_ground = friction_ground
         self.friction_ground_min_speed = friction_ground_min_speed
-        self.mass = mass  # Масса объекта (влияет на отскок)
+        self.mass = mass
 
         self.on_ground = False
         self.is_held = False
@@ -55,7 +55,6 @@ class PhysicFigure(ABC):
 
         self.current_room = room[1] if room else None
 
-        # Для отладки коллизий
         self.debug_collision = False
 
     @abstractmethod
@@ -66,10 +65,6 @@ class PhysicFigure(ABC):
     def update(self, player: Optional['Player'] = None, all_objects: List['PhysicFigure'] = None) -> None:
         """
         Обновляет физику объекта с учётом коллизий с другими объектами.
-
-        Args:
-            player: объект игрока (опционально)
-            all_objects: список всех физических объектов для коллизий
         """
         if self.is_held and player:
             self._update_held(player)
@@ -87,73 +82,154 @@ class PhysicFigure(ABC):
 
     def _update_physics(self, all_objects: List['PhysicFigure'] = None) -> None:
         """Обновляет физику объекта с коллизиями."""
+        # Применяем гравитацию
         self.vel_y += self.gravity
 
+        # Воздушное трение
         self.vel_x *= self.friction_air
 
+        # Трение о землю
         if self.on_ground:
             if abs(self.vel_x) > self.friction_ground_min_speed:
                 self.vel_x *= self.friction_ground
             else:
                 self.vel_x = 0
 
+        # Ограничение максимальной скорости
         self.vel_x = max(-self.max_speed_x, min(self.max_speed_x, self.vel_x))
         self.vel_y = max(-self.max_speed_y, min(self.max_speed_y, self.vel_y))
 
-        # Движение и коллизии
-        self.rect.x += self.vel_x
-        self._resolve_collision_x()
+        # Гарантируем, что объект не находится внутри стены
+        self._push_out_of_mask()
+
+        # Движение по X
+        self._move_until_collision_x(self.vel_x)
+
+        # Движение по Y
+        self._move_until_collision_y(self.vel_y)
+
+        # Коллизии с другими объектами
         if all_objects:
             self._resolve_object_collisions_x(all_objects)
-
-        self.rect.y += self.vel_y
-        self._resolve_collision_y()
-        if all_objects:
             self._resolve_object_collisions_y(all_objects)
 
+        # Стабилизация на земле
         self.stabilize_on_ground()
 
-    def _resolve_collision_x(self) -> None:
-        """Разрешает коллизии с границами комнаты и маской уровня по горизонтали."""
-        if not self.room:
+        # Финальное выталкивание
+        self._push_out_of_mask()
+
+    def _push_out_of_mask(self) -> None:
+        """
+        Выталкивает объект из маски уровня, если он в ней находится.
+        """
+        if not self.level_mask or not self.room:
             return
 
-        room_rect = self.room[0]
+        # Ограничим число итераций, чтобы не зациклиться
+        for _ in range(5):
+            if not self._check_mask_collision(self.rect):
+                break
 
-        if self.rect.left < room_rect.left:
-            self.rect.left = room_rect.left
-            self.vel_x = -self.vel_x * self.bounce
-        elif self.rect.right > room_rect.right:
-            self.rect.right = room_rect.right
-            self.vel_x = -self.vel_x * self.bounce
+            # Ищем направление, в котором можно вытолкнуть объект
+            best_dist = float('inf')
+            best_vec = (0, 0)
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    if dx == 0 and dy == 0:
+                        continue
+                    test_rect = self.rect.move(dx, dy)
+                    if not self._check_mask_collision(test_rect):
+                        dist = dx * dx + dy * dy
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_vec = (dx, dy)
 
-        if self.level_mask:
-            self._resolve_mask_collision_x()
+            if best_vec != (0, 0):
+                self.rect.move_ip(*best_vec)
+            else:
+                # Если не нашли выхода, перемещаем вверх
+                self.rect.y -= 1
 
-    def _resolve_collision_y(self) -> None:
-        """Разрешает коллизии с границами комнаты и маской уровня по вертикали."""
-        if not self.room:
+    def _move_until_collision_x(self, dx: float) -> None:
+        """
+        Двигает объект по X до столкновения с маской.
+        """
+        if dx == 0:
             return
 
-        was_on_ground = self.on_ground
-        room_rect = self.room[0]
+        step = 1 if dx > 0 else -1
+        steps = int(abs(dx))
 
-        if self.rect.top < room_rect.top:
-            self.rect.top = room_rect.top
-            self.vel_y = -self.vel_y * self.bounce
-        elif self.rect.bottom > room_rect.bottom:
-            self.rect.bottom = room_rect.bottom
-            self.vel_y = -self.vel_y * self.bounce
-            self.on_ground = True
-        else:
-            self.on_ground = False
+        for _ in range(steps):
+            new_rect = self.rect.move(step, 0)
+            if not self._check_mask_collision(new_rect):
+                self.rect.move_ip(step, 0)
+            else:
+                self.vel_x = 0
+                break
 
-        if self.level_mask:
-            self._resolve_mask_collision_y()
+        # Обрабатываем дробную часть
+        if abs(dx) - steps > 0:
+            new_rect = self.rect.move(step, 0)
+            if not self._check_mask_collision(new_rect):
+                self.rect.move_ip(step, 0)
+            else:
+                self.vel_x = 0
 
-        if not was_on_ground and self.on_ground:
-            self.vel_y = 0
-            self.vel_x *= 0.95
+    def _move_until_collision_y(self, dy: float) -> None:
+        """
+        Двигает объект по Y до столкновения с маской.
+        """
+        if dy == 0:
+            return
+
+        step = 1 if dy > 0 else -1
+        steps = int(abs(dy))
+        self.on_ground = False
+
+        for _ in range(steps):
+            new_rect = self.rect.move(0, step)
+            if not self._check_mask_collision(new_rect):
+                self.rect.move_ip(0, step)
+            else:
+                self.vel_y = 0
+                if step > 0:
+                    self.on_ground = True
+                break
+
+        # Обрабатываем дробную часть
+        if abs(dy) - steps > 0:
+            new_rect = self.rect.move(0, step)
+            if not self._check_mask_collision(new_rect):
+                self.rect.move_ip(0, step)
+            else:
+                self.vel_y = 0
+                if step > 0:
+                    self.on_ground = True
+
+    def _check_mask_collision(self, rect: pygame.Rect) -> bool:
+        """Проверяет пересечение прямоугольника с маской уровня."""
+        if not self.level_mask:
+            return False
+
+        mask_rect = pygame.Rect(0, 0, self.level_mask.get_size()[0], self.level_mask.get_size()[1])
+        if not rect.colliderect(mask_rect):
+            return False
+
+        points = [
+            (rect.left, rect.top),
+            (rect.right - 1, rect.top),
+            (rect.left, rect.bottom - 1),
+            (rect.right - 1, rect.bottom - 1),
+            (rect.centerx, rect.centery)
+        ]
+
+        for x, y in points:
+            if 0 <= x < self.level_mask.get_size()[0] and 0 <= y < self.level_mask.get_size()[1]:
+                if self.level_mask.get_at((int(x), int(y))):
+                    return True
+        return False
 
     def _resolve_object_collisions_x(self, objects: List['PhysicFigure']) -> None:
         """Разрешает коллизии с другими объектами по горизонтали."""
@@ -259,59 +335,6 @@ class PhysicFigure(ABC):
             self.on_ground = True
             self.vel_y = 0
 
-    def _resolve_mask_collision_x(self) -> None:
-        """Разрешает коллизии с маской по горизонтали."""
-        step = 1 if self.vel_x > 0 else -1 if self.vel_x < 0 else 0
-        if step == 0:
-            return
-
-        for _ in range(abs(int(self.vel_x)) + 5):
-            new_rect = pygame.Rect(self.rect.x + step, self.rect.y, self.width, self.height)
-            if not self._check_mask_collision(new_rect):
-                self.rect.x += step
-            else:
-                self.vel_x = -self.vel_x * self.bounce
-                break
-
-    def _resolve_mask_collision_y(self) -> None:
-        """Разрешает коллизии с маской по вертикали."""
-        step = 1 if self.vel_y > 0 else -1 if self.vel_y < 0 else 0
-        if step == 0:
-            return
-
-        for _ in range(abs(int(self.vel_y)) + 5):
-            new_rect = pygame.Rect(self.rect.x, self.rect.y + step, self.width, self.height)
-            if not self._check_mask_collision(new_rect):
-                self.rect.y += step
-            else:
-                self.vel_y = -self.vel_y * self.bounce
-                if step > 0:
-                    self.on_ground = True
-                break
-
-    def _check_mask_collision(self, rect: pygame.Rect) -> bool:
-        """Проверяет пересечение прямоугольника с маской уровня."""
-        if not self.level_mask:
-            return False
-
-        mask_rect = pygame.Rect(0, 0, self.level_mask.get_size()[0], self.level_mask.get_size()[1])
-        if not rect.colliderect(mask_rect):
-            return False
-
-        points = [
-            (rect.left, rect.top),
-            (rect.right - 1, rect.top),
-            (rect.left, rect.bottom - 1),
-            (rect.right - 1, rect.bottom - 1),
-            (rect.centerx, rect.centery)
-        ]
-
-        for x, y in points:
-            if 0 <= x < self.level_mask.get_size()[0] and 0 <= y < self.level_mask.get_size()[1]:
-                if self.level_mask.get_at((int(x), int(y))):
-                    return True
-        return False
-
     def stabilize_on_ground(self) -> None:
         """Стабилизирует объект на земле/платформе."""
         if self.is_held or self.vel_y > 0:
@@ -375,8 +398,8 @@ class PhysicFigure(ABC):
                 self.vel_x, self.vel_y = throw_velocity
             elif throw:
                 direction = 1 if player.last_direction == 1 else -1
-                self.vel_x = 7 * direction
-                self.vel_y = -2
+                self.vel_x = 500 * direction
+                self.vel_y = -100
             else:
                 direction = 1 if player.last_direction == 1 else -1
                 self.rect.centerx = player.rect.centerx + (35 * direction)
@@ -460,6 +483,5 @@ class PhysicFigure(ABC):
         """Отрисовывает объект."""
         if self.current_room == current_player_room:
             pygame.draw.rect(screen, self.color, self.rect)
-            # Опционально: отрисовка отладочной информации
             if self.debug_collision:
                 pygame.draw.rect(screen, (255, 255, 0), self.rect, 2)
