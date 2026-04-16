@@ -1,7 +1,5 @@
-"""
-Конфигурационный файл игры CUBE
-"""
 from pathlib import Path
+import pygame
 
 PR_DIR = Path(__file__).parent.parent
 ASSETS_DIR = PR_DIR / "assets"
@@ -12,8 +10,11 @@ ON_BG_DIR = ASSETS_DIR / "on_bg"
 JSON_DIR = PR_DIR / "json"
 SCREENSHOTS_DIR = PR_DIR / "screenshots"
 
-SCREEN_WIDTH = 1920
-SCREEN_HEIGHT = 1080
+pygame.init()
+info = pygame.display.Info()
+SCREEN_WIDTH = info.current_w
+SCREEN_HEIGHT = info.current_h
+pygame.quit()
 FPS = 60
 
 GRAVITY = 0.7
@@ -32,10 +33,10 @@ DEFAULT_PORT = 12345
 SOCKET_TIMEOUT = 5.0
 
 SKINS = {
-    "Участник": "assets/skins/player_st.png",
-    "Клоун": "assets/skins/player_cln.png",
-    "Кибер": "assets/skins/player_cp.png",
-    "Противогазный": "assets/skins/player_prt.png",
+    "Пон": "assets/skins/player_st.png",
+    "НЕКлоун": "assets/skins/player_cln.png",
+    "КиберНет": "assets/skins/player_cp.png",
+    "Против0газ": "assets/skins/player_prt.png",
     "???": "assets/skins/player_tank.png",
 }
 

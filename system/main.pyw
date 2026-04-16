@@ -1,14 +1,14 @@
-import pygame
 import sys
 import json
 from datetime import datetime
 from typing import Optional, Dict, Tuple
 
+from system.gui import HPBar
 from system.player import Player
 from system.client import Client
-from system.GUI import GUI
+from system.start import GUI
 from system.objects import Door, PhysikSq
-import config
+from config import *
 
 
 class GameResources:
@@ -24,9 +24,9 @@ class GameResources:
             return cls._room_cache[room_name]
 
         try:
-            mask_path = config.HB_DIR / f"{room_name}.png"
-            bg_path = config.BG_DIR / f"{room_name}_bg.png"
-            on_bg_path = config.ON_BG_DIR / f"{room_name}_bg.png"
+            mask_path = HB_DIR / f"{room_name}.png"
+            bg_path = BG_DIR / f"{room_name}_bg.png"
+            on_bg_path = ON_BG_DIR / f"{room_name}_bg.png"
 
             level_mask = pygame.mask.from_surface(pygame.image.load(str(mask_path)).convert_alpha())
             level_img = pygame.image.load(str(bg_path)).convert_alpha()
@@ -40,19 +40,19 @@ class GameResources:
             return None, None, None
 
     @classmethod
-    def get_skin(cls, skin_path: str, size: Tuple[int, int] = (config.PLAYER_SIZE, config.PLAYER_SIZE)) -> pygame.Surface:
+    def get_skin(cls, skin_path: str, size: Tuple[int, int] = (PLAYER_SIZE, PLAYER_SIZE)) -> pygame.Surface:
         """Загружает и масштабирует скин с кэшированием"""
         cache_key = f"{skin_path}_{size[0]}_{size[1]}"
         if cache_key in cls._skin_cache:
             return cls._skin_cache[cache_key].copy()
 
         try:
-            original = pygame.image.load(str(config.PR_DIR / skin_path)).convert_alpha()
+            original = pygame.image.load(str(PR_DIR / skin_path)).convert_alpha()
             scaled = pygame.transform.scale(original, size)
             cls._skin_cache[cache_key] = scaled
             return scaled.copy()
         except FileNotFoundError:
-            default_path = str(config.SKINS_DIR / "player_st.png")
+            default_path = str(SKINS_DIR / "player_st.png")
             original = pygame.image.load(default_path).convert_alpha()
             scaled = pygame.transform.scale(original, size)
             cls._skin_cache[cache_key] = scaled
@@ -64,7 +64,7 @@ class GameResources:
         if cls._custom_cursor is not None:
             return cls._custom_cursor
 
-        cursor_path = config.ASSETS_DIR / "cursor.png"
+        cursor_path = ASSETS_DIR / "cursor.png"
         try:
             cursor_img = pygame.image.load(str(cursor_path)).convert_alpha()
             cls._custom_cursor = pygame.transform.scale(cursor_img, (24, 24))
@@ -80,7 +80,7 @@ class GameResources:
 
 def load_json(filename: str, default: Dict) -> Dict:
     """Безопасная загрузка JSON с обработкой ошибок"""
-    filepath = config.JSON_DIR / filename
+    filepath = JSON_DIR / filename
     try:
         if filepath.exists() and filepath.stat().st_size > 0:
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -95,7 +95,7 @@ def load_json(filename: str, default: Dict) -> Dict:
 
 def save_json(filename: str, data: Dict) -> None:
     """Безопасное сохранение JSON"""
-    filepath = config.JSON_DIR / filename
+    filepath = JSON_DIR / filename
     try:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -119,9 +119,9 @@ def draw_nick(screen: pygame.Surface, font: pygame.font.Font, nick: str,
 
 def save_screenshot(screen: pygame.Surface) -> None:
     """Сохранение скриншота"""
-    config.SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename = config.SCREENSHOTS_DIR / f"screenshot_{timestamp}.png"
+    filename = SCREENSHOTS_DIR / f"screenshot_{timestamp}.png"
     pygame.image.save(screen, str(filename))
     print(f"Скриншот сохранён: {filename}")
 
@@ -132,7 +132,7 @@ def draw_remote_player(screen: pygame.Surface, font: pygame.font.Font, nick: str
     if data.get("room") != current_room:
         return
 
-    rect = pygame.Rect(data["x"], data["y"], config.PLAYER_SIZE, config.PLAYER_SIZE)
+    rect = pygame.Rect(data["x"], data["y"], PLAYER_SIZE, PLAYER_SIZE)
     screen.blit(skin_scaled, rect)
     draw_nick(screen, font, nick, rect)
 
@@ -158,9 +158,8 @@ class GameState:
         self.running = True
         self.paused = False
 
-        info = pygame.display.Info()
-        self.screen_width = info.current_w
-        self.screen_height = info.current_h
+        self.screen_width = SCREEN_WIDTH
+        self.screen_height = SCREEN_HEIGHT
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.NOFRAME)
         pygame.display.set_caption("CUBE")
 
@@ -175,10 +174,12 @@ class GameState:
         self.player = Player(
             (735, 749),
             [1, 1],
-            str(config.PR_DIR / gui.image_path1)
+            str(PR_DIR / gui.image_path1)
         )
 
-        self.remote_skin_scaled = GameResources.get_skin(gui.image_path2, (config.PLAYER_SIZE, config.PLAYER_SIZE))
+        self.hpbar = HPBar(self.player)
+
+        self.remote_skin_scaled = GameResources.get_skin(gui.image_path2, (PLAYER_SIZE, PLAYER_SIZE))
 
         self.client = None
         if gui.multiplayer:
@@ -194,6 +195,8 @@ class GameState:
         self.room_id = [1, 1]
         self.current_room_name = f'room_{self.room_id[0]}{self.room_id[1]}'
         self.output_room = int(self.current_room_name[5:])
+
+        self.hp = 1
 
         self.level_mask, self.level_img, self.on_level_img = GameResources.load_room_assets(self.current_room_name)
 
@@ -319,7 +322,7 @@ class GameState:
         }
         save_json('output_info.json', output)
 
-        if self.client.send_to_file(str(config.JSON_DIR / 'output_info.json')):
+        if self.client.send_to_file(str(JSON_DIR / 'output_info.json')):
             self.running = False
             return None
 
@@ -350,6 +353,10 @@ class GameState:
 
         draw_nick(self.screen, self.font_small, self.gui.name, self.player.rect)
 
+        hpb = self.hpbar.get_hpbar()
+        self.screen.blit(hpb, (SCREEN_WIDTH // 25, SCREEN_HEIGHT - (SCREEN_HEIGHT // 10), SCREEN_WIDTH // 2,
+                               SCREEN_HEIGHT // 20))
+
         if self.custom_cursor:
             self.screen.blit(self.custom_cursor, pygame.mouse.get_pos())
 
@@ -365,7 +372,7 @@ class GameState:
         clock = pygame.time.Clock()
 
         while self.running:
-            dt = clock.tick(config.FPS) / 1000.0
+            dt = clock.tick(FPS)
 
             if not self.handle_events():
                 break
