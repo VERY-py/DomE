@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from typing import Optional, Dict, Tuple
 
-from system.gui import HPBar
+from system.gui import HPBar, StaminaBar
 from system.player import Player
 from system.client import Client
 from system.start import GUI
@@ -178,6 +178,7 @@ class GameState:
         )
 
         self.hpbar = HPBar(self.player)
+        self.stbar = StaminaBar(self.player)
 
         self.remote_skin_scaled = GameResources.get_skin(gui.image_path2, (PLAYER_SIZE, PLAYER_SIZE))
 
@@ -355,6 +356,9 @@ class GameState:
 
         hpb = self.hpbar.get_hpbar()
         self.screen.blit(hpb, (SCREEN_WIDTH // 25, SCREEN_HEIGHT - (SCREEN_HEIGHT // 10), SCREEN_WIDTH // 2,
+                               SCREEN_HEIGHT // 20))
+        stb = self.stbar.get_stbar()
+        self.screen.blit(stb, (SCREEN_WIDTH // 2, SCREEN_HEIGHT - (SCREEN_HEIGHT // 10), SCREEN_WIDTH // 10,
                                SCREEN_HEIGHT // 20))
 
         if self.custom_cursor:
