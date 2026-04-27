@@ -65,7 +65,6 @@ class Player(pygame.sprite.Sprite):
         self.wall_jump_timer = 0
 
         self.hp = 100
-        self.st = 100
         self.fall_damage = 0
         self.bleeding = False
         self.brknthink = None
