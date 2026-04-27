@@ -1,6 +1,6 @@
 import pygame
 from typing import Optional, List, TYPE_CHECKING
-from system.physics_figure import PhysicFigure
+from physics_figure import PhysicFigure
 
 if TYPE_CHECKING:
     from system.player import Player

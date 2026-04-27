@@ -189,13 +189,6 @@ class Player(pygame.sprite.Sprite):
         """Обновление состояния игрока"""
         keys = pygame.key.get_pressed()
 
-        hp = self.hp
-        if keys[pygame.K_LEFT]:
-            hp -= 1
-        elif keys[pygame.K_RIGHT]:
-            hp += 1
-        self.hp = min(100, max(0, hp))
-
         while level_mask.overlap(self.mask, (self.rect.x, self.rect.y)):
             self.rect.y -= 1
 
@@ -240,13 +233,6 @@ class Player(pygame.sprite.Sprite):
             self.vel.y = -self.jump_power
             self.vel.x = self.wall_jump_dir * self.speed * 1.5
             self.wall_jump_timer = config.WALL_JUMP_TIMER_MAX
-
-        if self.on_ground or self.on_object:
-            fall_damage = self.fall_damage // 180
-            self.hp -= fall_damage
-            self.fall_damage = 0
-        else:
-            self.fall_damage += 5
 
         scaled_image = pygame.transform.scale(self.original_image, (config.PLAYER_SIZE, config.PLAYER_SIZE))
         if self.last_direction == -1:

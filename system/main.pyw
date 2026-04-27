@@ -1,13 +1,12 @@
-import sys
 import json
+import pygame
 from datetime import datetime
 from typing import Optional, Dict, Tuple
 
-from system.gui import HPBar
-from system.player import Player
-from system.client import Client
-from system.start import GUI
-from system.objects import Door, PhysikSq
+from player import Player
+from client import Client
+from start import GUI
+from objects import Door, PhysikSq
 from config import *
 
 
@@ -176,8 +175,6 @@ class GameState:
             [1, 1],
             str(PR_DIR / gui.image_path1)
         )
-
-        self.hpbar = HPBar(self.player)
 
         self.remote_skin_scaled = GameResources.get_skin(gui.image_path2, (PLAYER_SIZE, PLAYER_SIZE))
 
@@ -352,10 +349,6 @@ class GameState:
             self.screen.blit(self.on_level_img, (0, 0))
 
         draw_nick(self.screen, self.font_small, self.gui.name, self.player.rect)
-
-        hpb = self.hpbar.get_hpbar()
-        self.screen.blit(hpb, (SCREEN_WIDTH // 25, SCREEN_HEIGHT - (SCREEN_HEIGHT // 10), SCREEN_WIDTH // 2,
-                               SCREEN_HEIGHT // 20))
 
         if self.custom_cursor:
             self.screen.blit(self.custom_cursor, pygame.mouse.get_pos())

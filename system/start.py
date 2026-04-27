@@ -12,11 +12,11 @@ pygame.init()
 FPS = 60
 
 SKINS = {
-    "Участник": "assets/skins/player_st.png",
-    "Клоун": "assets/skins/player_cln.png",
-    "Кибер": "assets/skins/player_cp.png",
-    "Противогазный": "assets/skins/player_prt.png",
-    "???": "assets/skins/player_tank.png",
+    "Участник": "player_st.png",
+    "Клоун": "player_cln.png",
+    "Кибер": "player_cp.png",
+    "Противогазный": "player_prt.png",
+    "???": "player_tank.png",
 }
 
 
